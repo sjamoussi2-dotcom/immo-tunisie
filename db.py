@@ -83,6 +83,7 @@ def init_db():
                 rooms INTEGER,
                 lat REAL,
                 lng REAL,
+                contact_phone TEXT,
                 created_at TEXT,
                 published INTEGER DEFAULT 1,
                 FOREIGN KEY(user_id) REFERENCES users(id)
@@ -127,6 +128,7 @@ def init_db():
                 rooms INTEGER,
                 lat REAL,
                 lng REAL,
+                contact_phone TEXT,
                 created_at TEXT,
                 published INTEGER DEFAULT 1,
                 FOREIGN KEY(user_id) REFERENCES users(id)
@@ -148,6 +150,18 @@ def init_db():
             """
         )
     conn.commit()
+
+    # Lightweight migration: add contact_phone to listings created before this
+    # column existed (e.g. the already-deployed production database).
+    try:
+        if IS_POSTGRES:
+            conn.cursor().execute("ALTER TABLE listings ADD COLUMN IF NOT EXISTS contact_phone TEXT")
+        else:
+            conn.execute("ALTER TABLE listings ADD COLUMN contact_phone TEXT")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
     conn.close()
 
 
@@ -182,6 +196,10 @@ class Listing:
         self.rooms = row["rooms"]
         self.lat = row["lat"]
         self.lng = row["lng"]
+        try:
+            self.contact_phone = row["contact_phone"]
+        except (KeyError, IndexError):
+            self.contact_phone = None
         self.created_at = row["created_at"]
         self.published = bool(row["published"])
         self.owner = owner
@@ -265,15 +283,15 @@ def _hydrate_listing(conn, row):
 
 
 def create_listing(user_id, title, description, listing_type, category, city,
-                    surface, price, rooms, lat=None, lng=None, published=True):
+                    surface, price, rooms, lat=None, lng=None, contact_phone=None, published=True):
     conn = get_conn()
     created_at = datetime.utcnow().isoformat()
     params = (user_id, title, description, listing_type, category, city, surface,
-              price, rooms, lat, lng, created_at, int(published))
+              price, rooms, lat, lng, contact_phone, created_at, int(published))
     sql = """INSERT INTO listings
              (user_id, title, description, listing_type, category, city, surface,
-              price, rooms, lat, lng, created_at, published)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+              price, rooms, lat, lng, contact_phone, created_at, published)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
     if IS_POSTGRES:
         cur = run(conn, sql + " RETURNING id", params)
         listing_id = cur.fetchone()["id"]
@@ -368,6 +386,40 @@ def delete_listing(listing_id, user_id):
     conn.commit()
     conn.close()
     return True
+
+
+def update_listing(listing_id, user_id, title, description, listing_type, category, city,
+                    surface, price, rooms, lat=None, lng=None, contact_phone=None):
+    conn = get_conn()
+    cur = run(conn, "SELECT user_id FROM listings WHERE id = ?", (listing_id,))
+    row = cur.fetchone()
+    if not row or row["user_id"] != user_id:
+        conn.close()
+        return False
+    run(conn, """UPDATE listings SET title=?, description=?, listing_type=?, category=?, city=?,
+                 surface=?, price=?, rooms=?, lat=?, lng=?, contact_phone=? WHERE id=?""",
+        (title, description, listing_type, category, city, surface, price, rooms,
+         lat, lng, contact_phone, listing_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_all_photos(listing_id):
+    conn = get_conn()
+    run(conn, "DELETE FROM photos WHERE listing_id = ?", (listing_id,))
+    conn.commit()
+    conn.close()
+
+
+def backfill_missing_contact_phone(user_id, phone):
+    """Fill contact_phone for a user's listings that predate the contact_phone
+    column (e.g. seeded demo listings created before this feature existed)."""
+    conn = get_conn()
+    run(conn, "UPDATE listings SET contact_phone = ? WHERE user_id = ? AND (contact_phone IS NULL OR contact_phone = '')",
+        (phone, user_id))
+    conn.commit()
+    conn.close()
 
 
 # ---------------------------------------------------------------------------
