@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4" style="max-width:800px;">
+  <h2 class="fw-bold mb-4">{{ t('publish_listing_title') }}</h2>
+
+  <div class="alert alert-info small">
+    <i class="fa-solid fa-circle-info me-1"></i>{{ t('estimate_note') }}
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="card p-4 shadow-sm">
+    <div class="mb-3">
+      <label class="form-label">{{ t('form_title') }}</label>
+      <input type="text" name="title" class="form-control" required value="{{ form.get('title','') }}">
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">{{ t('form_type') }}</label>
+        <select name="listing_type" class="form-select" required>
+          <option value="sale" {{ 'selected' if form.get('listing_type')=='sale' }}>{{ t('sale') }}</option>
+          <option value="rent" {{ 'selected' if form.get('listing_type')=='rent' }}>{{ t('rent') }}</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">{{ t('form_category') }}</label>
+        <select name="category" class="form-select" required>
+          {% for cat in categories %}
+          <option value="{{ cat }}" {{ 'selected' if form.get('category')==cat }}>{{ t(cat) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-0">
+      <div class="col-md-6">
+        <label class="form-label">{{ t('form_city') }}</label>
+        <select name="city" class="form-select" required>
+          {% for c in cities %}
+          <option value="{{ c }}" {{ 'selected' if form.get('city')==c }}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t('form_surface') }}</label>
+        <input type="number" step="0.1" name="surface" class="form-control" required value="{{ form.get('surface','') }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ t('form_rooms') }}</label>
+        <input type="number" name="rooms" class="form-control" value="{{ form.get('rooms','') }}">
+      </div>
+    </div>
+
+    <div class="mb-3 mt-3">
+      <label class="form-label">{{ t('form_price') }}</label>
+      <input type="number" step="0.1" name="price" class="form-control" required value="{{ form.get('price','') }}">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">{{ t('form_description') }}</label>
+      <textarea name="description" class="form-control" rows="4">{{ form.get('description','') }}</textarea>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">{{ t('form_photos') }} <span class="text-danger">*</span></label>
+      <input type="file" name="photos" class="form-control" accept="image/*" multiple required>
+      <div class="form-text text-danger">{{ t('form_photos_help') }}</div>
+    </div>
+
+    <button type="submit" class="btn btn-warning fw-semibold mt-2">
+      <i class="fa-solid fa-paper-plane me-1"></i>{{ t('submit_listing') }}
+    </button>
+  </form>
+</div>
+{% endblock %}
+
