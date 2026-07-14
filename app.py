@@ -167,12 +167,16 @@ def create_listing(request):
         rooms = request.form.get("rooms")
         lat = request.form.get("lat")
         lng = request.form.get("lng")
+        contact_phone = request.form.get("contact_phone", "").strip()
 
         files = [f for f in request.files.get("photos", []) if f and f.filename]
 
         errors = []
         if not files:
             errors.append(t("error_photo_required", current_lang(request)))
+
+        if not contact_phone:
+            errors.append(t("error_contact_required", current_lang(request)))
 
         try:
             surface_val = float(surface)
@@ -205,6 +209,7 @@ def create_listing(request):
             rooms=int(rooms) if rooms else None,
             lat=lat_val,
             lng=lng_val,
+            contact_phone=contact_phone,
             published=True,
         )
 
@@ -217,7 +222,101 @@ def create_listing(request):
         app.flash(request, t("listing_created", current_lang(request)), "success")
         return redirect(app.url_for("listing_detail", listing_id=listing_id))
 
-    return app.render_template(request, "create_listing.html", form={})
+    return app.render_template(request, "create_listing.html",
+                                form={"contact_phone": request.user.phone or ""})
+
+
+@app.route("/listing/<int:listing_id>/edit", endpoint="edit_listing", methods=("GET", "POST"))
+@login_required
+def edit_listing(request, listing_id):
+    listing = db.get_listing(listing_id)
+    if not listing or listing.user_id != request.user.id:
+        abort(403)
+
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        description = request.form.get("description", "").strip()
+        listing_type = request.form.get("listing_type")
+        category = request.form.get("category")
+        city = request.form.get("city")
+        surface = request.form.get("surface")
+        price = request.form.get("price")
+        rooms = request.form.get("rooms")
+        lat = request.form.get("lat")
+        lng = request.form.get("lng")
+        contact_phone = request.form.get("contact_phone", "").strip()
+
+        files = [f for f in request.files.get("photos", []) if f and f.filename]
+
+        errors = []
+        if not files and not listing.photos:
+            errors.append(t("error_photo_required", current_lang(request)))
+
+        if not contact_phone:
+            errors.append(t("error_contact_required", current_lang(request)))
+
+        try:
+            surface_val = float(surface)
+            price_val = float(price)
+        except (TypeError, ValueError):
+            surface_val, price_val = 0, 0
+            errors.append("Surface / prix invalide")
+
+        try:
+            lat_val = float(lat)
+            lng_val = float(lng)
+        except (TypeError, ValueError):
+            lat_val, lng_val = None, None
+            errors.append(t("error_location_required", current_lang(request)))
+
+        if errors:
+            for e in errors:
+                app.flash(request, e, "danger")
+            return app.render_template(request, "create_listing.html",
+                                        form=request.form, listing=listing, edit_mode=True)
+
+        db.update_listing(
+            listing_id=listing_id,
+            user_id=request.user.id,
+            title=title,
+            description=description,
+            listing_type=listing_type,
+            category=category,
+            city=city,
+            surface=surface_val,
+            price=price_val,
+            rooms=int(rooms) if rooms else None,
+            lat=lat_val,
+            lng=lng_val,
+            contact_phone=contact_phone,
+        )
+
+        if files:
+            db.delete_all_photos(listing_id)
+            for f in files:
+                if allowed_file(f.filename):
+                    filename = secure_filename(f.filename)
+                    mimetype = mimetypes.guess_type(filename)[0] or "image/jpeg"
+                    db.add_photo(listing_id, filename, f.read_bytes(), mimetype)
+
+        app.flash(request, t("listing_updated", current_lang(request)), "success")
+        return redirect(app.url_for("listing_detail", listing_id=listing_id))
+
+    form_data = {
+        "title": listing.title,
+        "listing_type": listing.listing_type,
+        "category": listing.category,
+        "city": listing.city,
+        "surface": listing.surface,
+        "rooms": listing.rooms or "",
+        "price": listing.price,
+        "description": listing.description or "",
+        "lat": listing.lat,
+        "lng": listing.lng,
+        "contact_phone": listing.contact_phone or request.user.phone or "",
+    }
+    return app.render_template(request, "create_listing.html",
+                                form=form_data, listing=listing, edit_mode=True)
 
 
 @app.route("/photo/<int:photo_id>", endpoint="photo")
