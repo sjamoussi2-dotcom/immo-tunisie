@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: immo-tunisie
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python3 app.py"
+    envVars:
+      - key: IMMO_SECRET_KEY
+        generateValue: true
+
