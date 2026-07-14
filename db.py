@@ -1,9 +1,21 @@
 # -*- coding: utf-8 -*-
 import os
-import sqlite3
 from datetime import datetime
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# If DATABASE_URL is set (e.g. on Render with a linked Postgres database),
+# use Postgres so data survives free-plan restarts/spin-downs. Otherwise
+# fall back to a local SQLite file (e.g. for local development).
+DATABASE_URL = os.environ.get("DATABASE_URL")
+IS_POSTGRES = bool(DATABASE_URL)
+
+if IS_POSTGRES:
+    import psycopg2
+    import psycopg2.extras
+else:
+    import sqlite3
+
 DB_PATH = os.environ.get("IMMO_DB_PATH", os.path.join(BASE_DIR, "immo.db"))
 
 CITY_AVG_PRICE_M2 = {
@@ -25,47 +37,104 @@ CITY_AVG_PRICE_M2 = {
 
 
 def get_conn():
+    if IS_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+        return conn
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
+def q(sql):
+    """Translate sqlite-style '?' placeholders to psycopg2-style '%s' when needed."""
+    return sql.replace("?", "%s") if IS_POSTGRES else sql
+
+
+def run(conn, sql, params=()):
+    cur = conn.cursor()
+    cur.execute(q(sql), params)
+    return cur
+
+
 def init_db():
     conn = get_conn()
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            phone TEXT,
-            password_hash TEXT NOT NULL,
-            created_at TEXT
-        );
-        CREATE TABLE IF NOT EXISTS listings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            listing_type TEXT NOT NULL,
-            category TEXT NOT NULL,
-            city TEXT NOT NULL,
-            surface REAL NOT NULL,
-            price REAL NOT NULL,
-            rooms INTEGER,
-            created_at TEXT,
-            published INTEGER DEFAULT 1,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        );
-        CREATE TABLE IF NOT EXISTS photos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            listing_id INTEGER NOT NULL,
-            filename TEXT NOT NULL,
-            FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
-        );
-        """
-    )
+    if IS_POSTGRES:
+        conn.cursor().execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                phone TEXT,
+                password_hash TEXT NOT NULL,
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS listings (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                listing_type TEXT NOT NULL,
+                category TEXT NOT NULL,
+                city TEXT NOT NULL,
+                surface REAL NOT NULL,
+                price REAL NOT NULL,
+                rooms INTEGER,
+                lat REAL,
+                lng REAL,
+                created_at TEXT,
+                published INTEGER DEFAULT 1,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS photos (
+                id SERIAL PRIMARY KEY,
+                listing_id INTEGER NOT NULL,
+                filename TEXT NOT NULL,
+                mimetype TEXT DEFAULT 'image/jpeg',
+                data BYTEA NOT NULL,
+                FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
+            );
+            """
+        )
+    else:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                phone TEXT,
+                password_hash TEXT NOT NULL,
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS listings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                listing_type TEXT NOT NULL,
+                category TEXT NOT NULL,
+                city TEXT NOT NULL,
+                surface REAL NOT NULL,
+                price REAL NOT NULL,
+                rooms INTEGER,
+                lat REAL,
+                lng REAL,
+                created_at TEXT,
+                published INTEGER DEFAULT 1,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS photos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                listing_id INTEGER NOT NULL,
+                filename TEXT NOT NULL,
+                mimetype TEXT DEFAULT 'image/jpeg',
+                data BLOB NOT NULL,
+                FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
+            );
+            """
+        )
     conn.commit()
     conn.close()
 
@@ -82,7 +151,8 @@ class Owner:
 
 
 class Photo:
-    def __init__(self, filename):
+    def __init__(self, id, filename):
+        self.id = id
         self.filename = filename
 
 
@@ -98,6 +168,8 @@ class Listing:
         self.surface = row["surface"]
         self.price = row["price"]
         self.rooms = row["rooms"]
+        self.lat = row["lat"]
+        self.lng = row["lng"]
         self.created_at = row["created_at"]
         self.published = bool(row["published"])
         self.owner = owner
@@ -141,67 +213,90 @@ class AnonymousUser:
 # ---------------------------------------------------------------------------
 def create_user(name, email, phone, password_hash):
     conn = get_conn()
-    cur = conn.execute(
-        "INSERT INTO users (name, email, phone, password_hash, created_at) VALUES (?,?,?,?,?)",
-        (name, email, phone, password_hash, datetime.utcnow().isoformat()),
-    )
+    created_at = datetime.utcnow().isoformat()
+    sql = "INSERT INTO users (name, email, phone, password_hash, created_at) VALUES (?,?,?,?,?)"
+    if IS_POSTGRES:
+        cur = run(conn, sql + " RETURNING id", (name, email, phone, password_hash, created_at))
+        uid = cur.fetchone()["id"]
+    else:
+        cur = run(conn, sql, (name, email, phone, password_hash, created_at))
+        uid = cur.lastrowid
     conn.commit()
-    uid = cur.lastrowid
     conn.close()
     return uid
 
 
 def get_user_by_email(email):
     conn = get_conn()
-    row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    cur = run(conn, "SELECT * FROM users WHERE email = ?", (email,))
+    row = cur.fetchone()
     conn.close()
     return User(row) if row else None
 
 
 def get_user_by_id(user_id):
     conn = get_conn()
-    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    cur = run(conn, "SELECT * FROM users WHERE id = ?", (user_id,))
+    row = cur.fetchone()
     conn.close()
     return User(row) if row else None
 
 
 def _hydrate_listing(conn, row):
-    owner_row = conn.execute("SELECT * FROM users WHERE id = ?", (row["user_id"],)).fetchone()
+    cur = run(conn, "SELECT * FROM users WHERE id = ?", (row["user_id"],))
+    owner_row = cur.fetchone()
     owner = Owner(owner_row["id"], owner_row["name"], owner_row["email"], owner_row["phone"])
-    photo_rows = conn.execute(
-        "SELECT filename FROM photos WHERE listing_id = ? ORDER BY id", (row["id"],)
-    ).fetchall()
-    photos = [Photo(p["filename"]) for p in photo_rows]
+    cur = run(conn, "SELECT id, filename FROM photos WHERE listing_id = ? ORDER BY id", (row["id"],))
+    photo_rows = cur.fetchall()
+    photos = [Photo(p["id"], p["filename"]) for p in photo_rows]
     return Listing(row, owner, photos)
 
 
 def create_listing(user_id, title, description, listing_type, category, city,
-                    surface, price, rooms, published=True):
+                    surface, price, rooms, lat=None, lng=None, published=True):
     conn = get_conn()
-    cur = conn.execute(
-        """INSERT INTO listings
-           (user_id, title, description, listing_type, category, city, surface,
-            price, rooms, created_at, published)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-        (user_id, title, description, listing_type, category, city, surface,
-         price, rooms, datetime.utcnow().isoformat(), int(published)),
-    )
+    created_at = datetime.utcnow().isoformat()
+    params = (user_id, title, description, listing_type, category, city, surface,
+              price, rooms, lat, lng, created_at, int(published))
+    sql = """INSERT INTO listings
+             (user_id, title, description, listing_type, category, city, surface,
+              price, rooms, lat, lng, created_at, published)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+    if IS_POSTGRES:
+        cur = run(conn, sql + " RETURNING id", params)
+        listing_id = cur.fetchone()["id"]
+    else:
+        cur = run(conn, sql, params)
+        listing_id = cur.lastrowid
     conn.commit()
-    listing_id = cur.lastrowid
     conn.close()
     return listing_id
 
 
-def add_photo(listing_id, filename):
+def add_photo(listing_id, filename, data, mimetype="image/jpeg"):
     conn = get_conn()
-    conn.execute("INSERT INTO photos (listing_id, filename) VALUES (?,?)", (listing_id, filename))
+    payload = psycopg2.Binary(data) if IS_POSTGRES else data
+    run(conn, "INSERT INTO photos (listing_id, filename, mimetype, data) VALUES (?,?,?,?)",
+        (listing_id, filename, mimetype, payload))
     conn.commit()
     conn.close()
 
 
+def get_photo(photo_id):
+    conn = get_conn()
+    cur = run(conn, "SELECT data, mimetype FROM photos WHERE id = ?", (photo_id,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    data = bytes(row["data"])
+    return data, (row["mimetype"] or "image/jpeg")
+
+
 def get_listing(listing_id):
     conn = get_conn()
-    row = conn.execute("SELECT * FROM listings WHERE id = ?", (listing_id,)).fetchone()
+    cur = run(conn, "SELECT * FROM listings WHERE id = ?", (listing_id,))
+    row = cur.fetchone()
     if not row:
         conn.close()
         return None
@@ -228,12 +323,13 @@ def list_listings(filters=None):
         params.append(float(filters["price_max"]))
     if filters.get("q"):
         query += " AND (title LIKE ? OR city LIKE ?)"
-        like = f"%{filters['q']}%"
+        like = f"%${filters['q']}%"
         params.extend([like, like])
     query += " ORDER BY created_at DESC"
 
     conn = get_conn()
-    rows = conn.execute(query, params).fetchall()
+    cur = run(conn, query, params)
+    rows = cur.fetchall()
     result = [_hydrate_listing(conn, r) for r in rows]
     conn.close()
     return result
@@ -241,9 +337,8 @@ def list_listings(filters=None):
 
 def list_listings_by_user(user_id):
     conn = get_conn()
-    rows = conn.execute(
-        "SELECT * FROM listings WHERE user_id = ? ORDER BY created_at DESC", (user_id,)
-    ).fetchall()
+    cur = run(conn, "SELECT * FROM listings WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
+    rows = cur.fetchall()
     result = [_hydrate_listing(conn, r) for r in rows]
     conn.close()
     return result
@@ -251,13 +346,13 @@ def list_listings_by_user(user_id):
 
 def delete_listing(listing_id, user_id):
     conn = get_conn()
-    row = conn.execute("SELECT user_id FROM listings WHERE id = ?", (listing_id,)).fetchone()
+    cur = run(conn, "SELECT user_id FROM listings WHERE id = ?", (listing_id,))
+    row = cur.fetchone()
     if not row or row["user_id"] != user_id:
         conn.close()
         return False
-    conn.execute("DELETE FROM photos WHERE listing_id = ?", (listing_id,))
-    conn.execute("DELETE FROM listings WHERE id = ?", (listing_id,))
+    run(conn, "DELETE FROM photos WHERE listing_id = ?", (listing_id,))
+    run(conn, "DELETE FROM listings WHERE id = ?", (listing_id,))
     conn.commit()
     conn.close()
     return True
-
