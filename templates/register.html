@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-5" style="max-width:460px;">
+  <div class="card shadow-sm p-4">
+    <h3 class="fw-bold mb-3 text-center">{{ t('register_title') }}</h3>
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label">{{ t('form_name') }}</label>
+        <input type="text" name="name" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">{{ t('form_email') }}</label>
+        <input type="email" name="email" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">{{ t('form_phone') }}</label>
+        <input type="text" name="phone" class="form-control">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">{{ t('form_password') }}</label>
+        <input type="password" name="password" class="form-control" required minlength="6">
+      </div>
+      <button type="submit" class="btn btn-warning w-100 fw-semibold">{{ t('nav_register') }}</button>
+    </form>
+    <p class="text-center mt-3 mb-0 small">{{ t('already_have_account') }} <a href="{{ url_for('login') }}">{{ t('nav_login') }}</a></p>
+  </div>
+</div>
+{% endblock %}
+
