@@ -236,7 +236,9 @@ def stats(request):
 
 
 def _base_url(request):
-    scheme = request.environ.get("wsgi.url_scheme", "https")
+    scheme = request.environ.get("HTTP_X_FORWARDED_PROTO", request.environ.get("wsgi.url_scheme", "https"))
+    if "," in scheme:
+        scheme = scheme.split(",")[0].strip()
     host = request.environ.get("HTTP_HOST", "immo-tunisie.onrender.com")
     return f"{scheme}://{host}"
 
