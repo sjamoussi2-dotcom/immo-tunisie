@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="hero-search text-white">
+  <div class="container py-5">
+    <h1 class="fw-bold mb-4">{{ t('hero_title') }}</h1>
+    <form method="get" action="{{ url_for('index') }}" class="card p-3 shadow-sm text-dark search-card">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small mb-1">{{ t('filter_city') }}</label>
+          <select name="city" class="form-select">
+            <option value="">{{ t('all_cities') }}</option>
+            {% for c in cities %}
+              <option value="{{ c }}" {{ 'selected' if filters.get('city')==c }}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">{{ t('filter_type') }}</label>
+          <select name="type" class="form-select">
+            <option value="">{{ t('all_types') }}</option>
+            <option value="sale" {{ 'selected' if filters.get('type')=='sale' }}>{{ t('sale') }}</option>
+            <option value="rent" {{ 'selected' if filters.get('type')=='rent' }}>{{ t('rent') }}</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">{{ t('filter_price_min') }}</label>
+          <input type="number" name="price_min" class="form-control" value="{{ filters.get('price_min','') }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">{{ t('filter_price_max') }}</label>
+          <input type="number" name="price_max" class="form-control" value="{{ filters.get('price_max','') }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-1">{{ t('search_placeholder') }}</label>
+          <input type="text" name="q" class="form-control" value="{{ filters.get('q','') }}">
+        </div>
+        <div class="col-md-1">
+          <button class="btn btn-warning w-100 fw-semibold" type="submit">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="container py-4">
+  <p class="text-muted">{{ listings|length }} {{ t('listings_found') }}</p>
+
+  {% if not listings %}
+    <div class="alert alert-light border text-center py-5">{{ t('no_listings') }}</div>
+  {% endif %}
+
+  <div class="row row-cols-1 row-cols-md-3 g-4">
+    {% for listing in listings %}
+    <div class="col">
+      <a href="{{ url_for('listing_detail', listing_id=listing.id) }}" class="text-decoration-none text-dark">
+        <div class="card listing-card h-100 shadow-sm">
+          <div class="listing-photo">
+            {% if listing.photos %}
+              <img src="{{ url_for('static', filename='uploads/' ~ listing.photos[0].filename) }}" alt="{{ listing.title }}">
+            {% else %}
+              <div class="no-photo"><i class="fa-solid fa-image"></i></div>
+            {% endif %}
+            <span class="badge type-badge bg-{{ 'success' if listing.listing_type=='rent' else 'primary' }}">
+              {{ t('rent') if listing.listing_type=='rent' else t('sale') }}
+            </span>
+          </div>
+          <div class="card-body">
+            <h5 class="card-title mb-1">{{ listing.title }}</h5>
+            <p class="text-muted mb-1"><i class="fa-solid fa-location-dot me-1"></i>{{ listing.city }}</p>
+            <p class="fw-bold fs-5 mb-1">{{ '{:,.0f}'.format(listing.price) }} TND</p>
+            <p class="text-muted small mb-2">{{ listing.surface }} m&sup2; &middot; {{ '{:,.0f}'.format(listing.price_per_m2) }} TND{{ t('per_sqm') }}</p>
+            {% set eval = listing.price_evaluation() %}
+            {% if eval[0] == 'realistic' %}
+              <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="fa-solid fa-circle-check me-1"></i>{{ t('price_realistic') }}</span>
+            {% elif eval[0] == 'high' %}
+              <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="fa-solid fa-arrow-up me-1"></i>{{ t('price_high') }}</span>
+            {% elif eval[0] == 'low' %}
+              <span class="badge bg-info-subtle text-info border border-info-subtle"><i class="fa-solid fa-arrow-down me-1"></i>{{ t('price_low') }}</span>
+            {% endif %}
+          </div>
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
