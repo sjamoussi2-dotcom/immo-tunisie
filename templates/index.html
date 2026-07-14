@@ -59,7 +59,7 @@
         <div class="card listing-card h-100 shadow-sm">
           <div class="listing-photo">
             {% if listing.photos %}
-              <img src="{{ url_for('static', filename='uploads/' ~ listing.photos[0].filename) }}" alt="{{ listing.title }}">
+              <img src="{{ url_for('photo', photo_id=listing.photos[0].id) }}" alt="{{ listing.title }}">
             {% else %}
               <div class="no-photo"><i class="fa-solid fa-image"></i></div>
             {% endif %}
@@ -88,4 +88,3 @@
   </div>
 </div>
 {% endblock %}
-
