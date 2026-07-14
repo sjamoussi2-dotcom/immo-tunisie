@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+immo.db
+immo.db-journal
+static/uploads/*
+!static/uploads/.gitkeep
+server.log
+
