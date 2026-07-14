@@ -8,7 +8,7 @@
           {% if listing.photos %}
             {% for photo in listing.photos %}
             <div class="carousel-item {{ 'active' if loop.first }}" style="height:420px;">
-              <img src="{{ url_for('static', filename='uploads/' ~ photo.filename) }}" class="d-block w-100 h-100" style="object-fit:cover;">
+              <img src="{{ url_for('photo', photo_id=photo.id) }}" class="d-block w-100 h-100" style="object-fit:cover;">
             </div>
             {% endfor %}
           {% else %}
@@ -38,6 +38,16 @@
 
       <h5 class="mt-4">{{ t('description') }}</h5>
       <p>{{ listing.description or '-' }}</p>
+
+      {% if listing.lat and listing.lng %}
+      <h5 class="mt-4">{{ t('location_map') }}</h5>
+      <div class="ratio ratio-16x9 rounded overflow-hidden shadow-sm mb-2">
+        <iframe src="https://maps.google.com/maps?q={{ listing.lat }},{{ listing.lng }}&z=15&output=embed" style="border:0;" loading="lazy"></iframe>
+      </div>
+      <a href="https://www.google.com/maps?q={{ listing.lat }},{{ listing.lng }}" target="_blank" rel="noopener">
+        <i class="fa-solid fa-up-right-from-square me-1"></i>{{ t('open_google_maps') }}
+      </a>
+      {% endif %}
     </div>
 
     <div class="col-lg-4">
@@ -84,4 +94,3 @@
   </div>
 </div>
 {% endblock %}
-
