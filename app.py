@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import mimetypes
 import os
+import re
 
 import db
 import seed_data
@@ -32,9 +33,23 @@ def current_lang(request):
     return request.session.get("lang", "fr")
 
 
+NO_TRACK_PATHS = ("/static", "/photo/", "/sitemap.xml", "/robots.txt", "/favicon.ico", "/stats")
+_LISTING_PATH_RE = re.compile(r"^/listing/(\d+)$")
+
+
 def load_current_user(app_, request):
     uid = request.session.get("user_id")
     request.user = db.get_user_by_id(uid) if uid else db.AnonymousUser()
+
+    if request.method == "GET" and not request.path.startswith(NO_TRACK_PATHS):
+        listing_id = None
+        m = _LISTING_PATH_RE.match(request.path)
+        if m:
+            listing_id = int(m.group(1))
+        try:
+            db.log_pageview(request.path, listing_id)
+        except Exception:
+            pass
 
 
 miniweb.before_user_hook = load_current_user
@@ -212,6 +227,39 @@ def photo(request, photo_id):
         abort(404)
     data, mimetype = result
     return Response(data, content_type=mimetype)
+
+
+@app.route("/stats", endpoint="stats")
+def stats(request):
+    data = db.get_stats()
+    return app.render_template(request, "stats.html", stats=data)
+
+
+def _base_url(request):
+    scheme = request.environ.get("wsgi.url_scheme", "https")
+    host = request.environ.get("HTTP_HOST", "immo-tunisie.onrender.com")
+    return f"{scheme}://{host}"
+
+
+@app.route("/sitemap.xml", endpoint="sitemap")
+def sitemap(request):
+    base = _base_url(request)
+    urls = [base + "/", base + app.url_for("index", type="sale"), base + app.url_for("index", type="rent")]
+    for listing in db.list_listings():
+        urls.append(base + app.url_for("listing_detail", listing_id=listing.id))
+
+    body = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for u in urls:
+        body.append(f"  <url><loc>{u}</loc></url>")
+    body.append("</urlset>")
+    return Response("\n".join(body), content_type="application/xml; charset=utf-8")
+
+
+@app.route("/robots.txt", endpoint="robots")
+def robots(request):
+    base = _base_url(request)
+    body = f"User-agent: *\nAllow: /\nSitemap: {base}/sitemap.xml\n"
+    return Response(body, content_type="text/plain; charset=utf-8")
 
 
 @app.route("/dashboard", endpoint="dashboard")
