@@ -75,6 +75,19 @@ TRANSLATIONS = {
     "hero_title": {"fr": "Trouvez votre prochain bien en Tunisie", "ar": "ابحث عن عقارك القادم في تونس", "en": "Find your next property in Tunisia"},
     "estimate_note": {"fr": "Estimation automatique basée sur le prix moyen au m² de la région.", "ar": "تقدير تلقائي بناءً على متوسط سعر المتر المربع في المنطقة.", "en": "Automatic estimate based on the average price per sqm in the region."},
     "welcome_user": {"fr": "Bonjour", "ar": "مرحبا", "en": "Hello"},
+    "form_location": {"fr": "Localisation (Google Maps)", "ar": "الموقع (خرائط جوجل)", "en": "Location (Google Maps)"},
+    "form_location_help": {
+        "fr": "Ouvrez Google Maps, faites un clic droit sur l'emplacement du bien puis copiez les coordonnees (latitude, longitude) affichees.",
+        "ar": "افتح خرائط جوجل، انقر بزر الماوس الأيمن على موقع العقار ثم انسخ الإحداثيات (خط العرض، خط الطول) المعروضة.",
+        "en": "Open Google Maps, right-click the property's location, then copy the coordinates (latitude, longitude) shown.",
+    },
+    "open_google_maps": {"fr": "Ouvrir Google Maps", "ar": "افتح خرائط جوجل", "en": "Open Google Maps"},
+    "error_location_required": {
+        "fr": "Veuillez indiquer la localisation du bien via Google Maps (latitude et longitude).",
+        "ar": "يرجى تحديد موقع العقار عبر خرائط جوجل (خط العرض وخط الطول).",
+        "en": "Please provide the property's location via Google Maps (latitude and longitude).",
+    },
+    "location_map": {"fr": "Localisation", "ar": "الموقع", "en": "Location"},
 }
 
 
@@ -83,4 +96,3 @@ def t(key, lang="fr"):
     if not entry:
         return key
     return entry.get(lang, entry.get("fr", key))
-
