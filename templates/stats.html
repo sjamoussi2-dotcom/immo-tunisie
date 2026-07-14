@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block meta_title %}{{ t('stats_title') }} | {{ t('site_name') }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="fw-bold mb-4"><i class="fa-solid fa-chart-line me-2"></i>{{ t('stats_title') }}</h2>
+
+  <div class="row row-cols-2 row-cols-md-4 g-3 mb-4">
+    <div class="col">
+      <div class="card shadow-sm text-center p-3 h-100">
+        <div class="fs-3 fw-bold text-primary">{{ stats.total_views }}</div>
+        <div class="text-muted small">{{ t('stats_total_views') }}</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card shadow-sm text-center p-3 h-100">
+        <div class="fs-3 fw-bold text-warning">{{ stats.views_today }}</div>
+        <div class="text-muted small">{{ t('stats_views_today') }}</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card shadow-sm text-center p-3 h-100">
+        <div class="fs-3 fw-bold text-success">{{ stats.total_users }}</div>
+        <div class="text-muted small">{{ t('stats_total_users') }}</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card shadow-sm text-center p-3 h-100">
+        <div class="fs-3 fw-bold text-secondary">{{ stats.total_listings }}</div>
+        <div class="text-muted small">{{ t('stats_total_listings') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card shadow-sm p-3 h-100">
+        <h5 class="mb-3">{{ t('stats_by_day') }}</h5>
+        {% if stats.by_day %}
+        <table class="table table-sm">
+          <thead><tr><th>{{ t('stats_date_col') }}</th><th class="text-end">{{ t('stats_views_col') }}</th></tr></thead>
+          <tbody>
+            {% for day, count in stats.by_day %}
+            <tr><td>{{ day }}</td><td class="text-end fw-semibold">{{ count }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted">{{ t('stats_no_data') }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card shadow-sm p-3 h-100">
+        <h5 class="mb-3">{{ t('stats_top_listings') }}</h5>
+        {% if stats.top_listings %}
+        <table class="table table-sm align-middle">
+          <tbody>
+            {% for listing, count in stats.top_listings %}
+            <tr>
+              <td>
+                <a href="{{ url_for('listing_detail', listing_id=listing.id) }}" class="text-decoration-none">
+                  {{ listing.title }}
+                </a>
+                <div class="text-muted small">{{ listing.city }}</div>
+              </td>
+              <td class="text-end fw-semibold">{{ count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted">{{ t('stats_no_data') }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
