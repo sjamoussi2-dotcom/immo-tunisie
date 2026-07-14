@@ -95,6 +95,12 @@ def init_db():
                 data BYTEA NOT NULL,
                 FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
             );
+            CREATE TABLE IF NOT EXISTS page_views (
+                id SERIAL PRIMARY KEY,
+                path TEXT NOT NULL,
+                listing_id INTEGER,
+                viewed_at TEXT
+            );
             """
         )
     else:
@@ -132,6 +138,12 @@ def init_db():
                 mimetype TEXT DEFAULT 'image/jpeg',
                 data BLOB NOT NULL,
                 FOREIGN KEY(listing_id) REFERENCES listings(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS page_views (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                path TEXT NOT NULL,
+                listing_id INTEGER,
+                viewed_at TEXT
             );
             """
         )
@@ -323,7 +335,7 @@ def list_listings(filters=None):
         params.append(float(filters["price_max"]))
     if filters.get("q"):
         query += " AND (title LIKE ? OR city LIKE ?)"
-        like = f"%${filters['q']}%"
+        like = f"%{filters['q']}%"
         params.extend([like, like])
     query += " ORDER BY created_at DESC"
 
@@ -356,3 +368,66 @@ def delete_listing(listing_id, user_id):
     conn.commit()
     conn.close()
     return True
+
+
+# ---------------------------------------------------------------------------
+# Visitor / page-view tracking
+# ---------------------------------------------------------------------------
+def log_pageview(path, listing_id=None):
+    conn = get_conn()
+    viewed_at = datetime.utcnow().isoformat()
+    run(conn, "INSERT INTO page_views (path, listing_id, viewed_at) VALUES (?,?,?)",
+        (path, listing_id, viewed_at))
+    conn.commit()
+    conn.close()
+
+
+def get_stats():
+    conn = get_conn()
+
+    cur = run(conn, "SELECT COUNT(*) as c FROM page_views")
+    total_views = cur.fetchone()["c"]
+
+    today = datetime.utcnow().date().isoformat()
+    cur = run(conn, "SELECT COUNT(*) as c FROM page_views WHERE substr(viewed_at,1,10) = ?", (today,))
+    views_today = cur.fetchone()["c"]
+
+    cur = run(conn, "SELECT COUNT(*) as c FROM users")
+    total_users = cur.fetchone()["c"]
+
+    cur = run(conn, "SELECT COUNT(*) as c FROM listings")
+    total_listings = cur.fetchone()["c"]
+
+    cur = run(conn, """
+        SELECT substr(viewed_at,1,10) as day, COUNT(*) as c
+        FROM page_views
+        GROUP BY substr(viewed_at,1,10)
+        ORDER BY day DESC
+        LIMIT 14
+    """)
+    by_day = [(r["day"], r["c"]) for r in cur.fetchall()]
+
+    cur = run(conn, """
+        SELECT listing_id, COUNT(*) as c FROM page_views
+        WHERE listing_id IS NOT NULL
+        GROUP BY listing_id
+        ORDER BY c DESC
+        LIMIT 10
+    """)
+    top_rows = cur.fetchall()
+    conn.close()
+
+    top_listings = []
+    for r in top_rows:
+        lst = get_listing(r["listing_id"])
+        if lst:
+            top_listings.append((lst, r["c"]))
+
+    return {
+        "total_views": total_views,
+        "views_today": views_today,
+        "total_users": total_users,
+        "total_listings": total_listings,
+        "by_day": by_day,
+        "top_listings": top_listings,
+    }
