@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
+import mimetypes
 import os
 
 import db
+import seed_data
 from db import CITY_AVG_PRICE_M2
 from miniweb import App, Request, Response, redirect, abort
 import miniweb
@@ -11,14 +13,13 @@ from translations import t
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-UPLOAD_FOLDER = os.path.join(STATIC_DIR, "uploads")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
 CATEGORIES = ["apartment", "house", "villa", "land", "commercial"]
 LISTING_TYPES = ["sale", "rent"]
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 db.init_db()
+seed_data.run_seed()
 
 app = App(TEMPLATE_DIR, STATIC_DIR)
 
@@ -149,6 +150,8 @@ def create_listing(request):
         surface = request.form.get("surface")
         price = request.form.get("price")
         rooms = request.form.get("rooms")
+        lat = request.form.get("lat")
+        lng = request.form.get("lng")
 
         files = [f for f in request.files.get("photos", []) if f and f.filename]
 
@@ -162,6 +165,13 @@ def create_listing(request):
         except (TypeError, ValueError):
             surface_val, price_val = 0, 0
             errors.append("Surface / prix invalide")
+
+        try:
+            lat_val = float(lat)
+            lng_val = float(lng)
+        except (TypeError, ValueError):
+            lat_val, lng_val = None, None
+            errors.append(t("error_location_required", current_lang(request)))
 
         if errors:
             for e in errors:
@@ -178,22 +188,30 @@ def create_listing(request):
             surface=surface_val,
             price=price_val,
             rooms=int(rooms) if rooms else None,
+            lat=lat_val,
+            lng=lng_val,
             published=True,
         )
 
-        listing_dir = os.path.join(UPLOAD_FOLDER, str(listing_id))
-        os.makedirs(listing_dir, exist_ok=True)
         for f in files:
             if allowed_file(f.filename):
                 filename = secure_filename(f.filename)
-                path = os.path.join(listing_dir, filename)
-                f.save(path)
-                db.add_photo(listing_id, f"{listing_id}/{filename}")
+                mimetype = mimetypes.guess_type(filename)[0] or "image/jpeg"
+                db.add_photo(listing_id, filename, f.read_bytes(), mimetype)
 
         app.flash(request, t("listing_created", current_lang(request)), "success")
         return redirect(app.url_for("listing_detail", listing_id=listing_id))
 
     return app.render_template(request, "create_listing.html", form={})
+
+
+@app.route("/photo/<int:photo_id>", endpoint="photo")
+def photo(request, photo_id):
+    result = db.get_photo(photo_id)
+    if not result:
+        abort(404)
+    data, mimetype = result
+    return Response(data, content_type=mimetype)
 
 
 @app.route("/dashboard", endpoint="dashboard")
@@ -215,4 +233,3 @@ def delete_listing(request, listing_id):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
