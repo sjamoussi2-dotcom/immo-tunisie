@@ -66,10 +66,25 @@
       <div class="form-text text-danger">{{ t('form_photos_help') }}</div>
     </div>
 
+    <div class="mb-3">
+      <label class="form-label">{{ t('form_location') }} <span class="text-danger">*</span></label>
+      <div class="row g-2">
+        <div class="col-md-6">
+          <input type="number" step="any" name="lat" class="form-control" placeholder="Latitude" required value="{{ form.get('lat','') }}">
+        </div>
+        <div class="col-md-6">
+          <input type="number" step="any" name="lng" class="form-control" placeholder="Longitude" required value="{{ form.get('lng','') }}">
+        </div>
+      </div>
+      <div class="form-text">
+        {{ t('form_location_help') }}
+        <a href="https://www.google.com/maps" target="_blank" rel="noopener">{{ t('open_google_maps') }}</a>
+      </div>
+    </div>
+
     <button type="submit" class="btn btn-warning fw-semibold mt-2">
       <i class="fa-solid fa-paper-plane me-1"></i>{{ t('submit_listing') }}
     </button>
   </form>
 </div>
 {% endblock %}
-
