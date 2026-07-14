@@ -1,4 +1,8 @@
 {% extends "base.html" %}
+{% block meta_title %}{{ listing.title }} - {{ listing.city }} | {{ t('site_name') }}{% endblock %}
+{% block meta_description %}{{ listing.title }} - {{ listing.city }}, {{ listing.surface }} m², {{ '{:,.0f}'.format(listing.price) }} TND{% endblock %}
+{% block og_title %}{{ listing.title }} - {{ listing.city }}{% endblock %}
+{% block og_description %}{{ listing.description[:150] if listing.description else listing.title }}{% endblock %}
 {% block content %}
 <div class="container py-4">
   <div class="row g-4">
