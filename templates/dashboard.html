@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold mb-0">{{ t('my_listings_title') }}</h2>
+    <a href="{{ url_for('create_listing') }}" class="btn btn-warning fw-semibold">
+      <i class="fa-solid fa-plus me-1"></i>{{ t('nav_publish') }}
+    </a>
+  </div>
+
+  {% if not listings %}
+    <div class="alert alert-light border text-center py-5">{{ t('no_own_listings') }}</div>
+  {% endif %}
+
+  <div class="row row-cols-1 row-cols-md-3 g-4">
+    {% for listing in listings %}
+    <div class="col">
+      <div class="card listing-card h-100 shadow-sm">
+        <a href="{{ url_for('listing_detail', listing_id=listing.id) }}" class="text-decoration-none text-dark">
+          <div class="listing-photo">
+            {% if listing.photos %}
+              <img src="{{ url_for('static', filename='uploads/' ~ listing.photos[0].filename) }}">
+            {% else %}
+              <div class="no-photo"><i class="fa-solid fa-image"></i></div>
+            {% endif %}
+          </div>
+          <div class="card-body">
+            <h5 class="card-title mb-1">{{ listing.title }}</h5>
+            <p class="text-muted mb-1">{{ listing.city }}</p>
+            <p class="fw-bold mb-2">{{ '{:,.0f}'.format(listing.price) }} TND</p>
+          </div>
+        </a>
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+          <span class="badge bg-success-subtle text-success">{{ t('published') }}</span>
+          <form method="post" action="{{ url_for('delete_listing', listing_id=listing.id) }}"
+                onsubmit="return confirm('Supprimer / حذف / Delete?');">
+            <button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash"></i></button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
