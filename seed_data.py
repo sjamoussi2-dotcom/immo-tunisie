@@ -106,10 +106,6 @@ def _make_image_bytes(title, subtitle, category):
 
 
 def run_seed(target_count=110):
-    existing = db.list_listings()
-    if len(existing) >= target_count:
-        return 0
-
     demo_user = db.get_user_by_email("demo@immotunisie.tn")
     if not demo_user:
         uid = db.create_user(
@@ -118,6 +114,14 @@ def run_seed(target_count=110):
         )
     else:
         uid = demo_user.id
+
+    # Backfill contact_phone on any demo listings created before this field
+    # existed, so "Contact seller" / WhatsApp always works on demo data.
+    db.backfill_missing_contact_phone(uid, "20123456")
+
+    existing = db.list_listings()
+    if len(existing) >= target_count:
+        return 0
 
     rng = random.Random(42)
     cities = list(db.CITY_AVG_PRICE_M2.keys())
@@ -168,7 +172,7 @@ def run_seed(target_count=110):
             user_id=uid, title=title, description=description,
             listing_type=listing_type, category=category, city=city,
             surface=float(surface), price=float(price),
-            rooms=rooms, lat=lat, lng=lng, published=True,
+            rooms=rooms, lat=lat, lng=lng, contact_phone="20123456", published=True,
         )
         img_bytes = _make_image_bytes(title, city, category)
         db.add_photo(listing_id, f"demo_{listing_id}.jpg", img_bytes, "image/jpeg")
