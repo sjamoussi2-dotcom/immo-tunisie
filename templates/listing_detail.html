@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div id="photoCarousel" class="carousel slide shadow-sm rounded overflow-hidden mb-4" data-bs-ride="carousel">
+        <div class="carousel-inner bg-light" style="height:420px;">
+          {% if listing.photos %}
+            {% for photo in listing.photos %}
+            <div class="carousel-item {{ 'active' if loop.first }}" style="height:420px;">
+              <img src="{{ url_for('static', filename='uploads/' ~ photo.filename) }}" class="d-block w-100 h-100" style="object-fit:cover;">
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+              <i class="fa-solid fa-image fa-3x"></i>
+            </div>
+          {% endif %}
+        </div>
+        {% if listing.photos|length > 1 %}
+        <button class="carousel-control-prev" type="button" data-bs-target="#photoCarousel" data-bs-slide="prev">
+          <span class="carousel-control-prev-icon"></span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#photoCarousel" data-bs-slide="next">
+          <span class="carousel-control-next-icon"></span>
+        </button>
+        {% endif %}
+      </div>
+
+      <h2 class="fw-bold">{{ listing.title }}</h2>
+      <p class="text-muted"><i class="fa-solid fa-location-dot me-1"></i>{{ listing.city }}</p>
+
+      <div class="d-flex gap-4 my-3 flex-wrap">
+        <div><i class="fa-solid fa-ruler-combined me-1"></i>{{ listing.surface }} m&sup2; ({{ t('surface') }})</div>
+        {% if listing.rooms %}<div><i class="fa-solid fa-door-open me-1"></i>{{ listing.rooms }} {{ t('rooms') }}</div>{% endif %}
+        <div><i class="fa-solid fa-tag me-1"></i>{{ t(listing.category) }}</div>
+      </div>
+
+      <h5 class="mt-4">{{ t('description') }}</h5>
+      <p>{{ listing.description or '-' }}</p>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card shadow-sm p-3 sticky-top" style="top:90px;">
+        <span class="badge bg-{{ 'success' if listing.listing_type=='rent' else 'primary' }} mb-2 align-self-start">
+          {{ t('rent') if listing.listing_type=='rent' else t('sale') }}
+        </span>
+        <h3 class="fw-bold">{{ '{:,.0f}'.format(listing.price) }} TND</h3>
+        <p class="text-muted">{{ '{:,.0f}'.format(listing.price_per_m2) }} TND{{ t('per_sqm') }}</p>
+
+        {% set eval = listing.price_evaluation() %}
+        <div class="p-3 rounded mb-3
+          {% if eval[0]=='realistic' %}bg-success-subtle
+          {% elif eval[0]=='high' %}bg-danger-subtle
+          {% elif eval[0]=='low' %}bg-info-subtle
+          {% else %}bg-light{% endif %}">
+          {% if eval[0] == 'realistic' %}
+            <strong><i class="fa-solid fa-circle-check me-1"></i>{{ t('price_realistic') }}</strong>
+          {% elif eval[0] == 'high' %}
+            <strong><i class="fa-solid fa-arrow-up me-1"></i>{{ t('price_high') }}</strong>
+          {% elif eval[0] == 'low' %}
+            <strong><i class="fa-solid fa-arrow-down me-1"></i>{{ t('price_low') }}</strong>
+          {% else %}
+            <strong>{{ t('price_unknown') }}</strong>
+          {% endif %}
+          {% if eval[2] %}
+          <div class="small text-muted mt-1">{{ t('market_avg') }}: {{ '{:,.0f}'.format(eval[2]) }} TND{{ t('per_sqm') }}</div>
+          {% endif %}
+          <div class="small text-muted">{{ t('estimate_note') }}</div>
+        </div>
+
+        <p class="mb-1"><i class="fa-solid fa-user me-1"></i>{{ listing.owner.name }}</p>
+        {% if listing.owner.phone %}
+        <a href="tel:{{ listing.owner.phone }}" class="btn btn-warning fw-semibold mt-2">
+          <i class="fa-solid fa-phone me-1"></i>{{ t('contact_seller') }} ({{ listing.owner.phone }})
+        </a>
+        {% else %}
+        <a href="mailto:{{ listing.owner.email }}" class="btn btn-warning fw-semibold mt-2">
+          <i class="fa-solid fa-envelope me-1"></i>{{ t('contact_seller') }}
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
