@@ -51,6 +51,9 @@ class FileStorage:
         with open(path, "wb") as f:
             f.write(self._data)
 
+    def read_bytes(self):
+        return self._data
+
 
 # ---------------------------------------------------------------------------
 # Session (signed cookie, stateless like Flask's default)
@@ -323,4 +326,3 @@ class App:
 # Hook point set by app.py to attach request.user before dispatch
 def before_user_hook(app, request):
     pass
-
