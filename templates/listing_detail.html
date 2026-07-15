@@ -84,12 +84,18 @@
         </div>
 
         <p class="mb-1"><i class="fa-solid fa-user me-1"></i>{{ listing.owner.name }}</p>
-        {% if listing.owner.phone %}
-        <a href="tel:{{ listing.owner.phone }}" class="btn btn-warning fw-semibold mt-2">
-          <i class="fa-solid fa-phone me-1"></i>{{ t('contact_seller') }} ({{ listing.owner.phone }})
+        {% set phone = listing.contact_phone or listing.owner.phone %}
+        {% if phone %}
+        {% set clean_phone = phone|replace(' ', '')|replace('-', '')|replace('+', '') %}
+        {% set wa_phone = clean_phone if clean_phone.startswith('216') else '216' + clean_phone %}
+        <a href="tel:{{ phone }}" class="btn btn-warning fw-semibold mt-2 w-100">
+          <i class="fa-solid fa-phone me-1"></i>{{ t('contact_seller') }} ({{ phone }})
+        </a>
+        <a href="https://wa.me/{{ wa_phone }}" target="_blank" rel="noopener" class="btn btn-success fw-semibold mt-2 w-100">
+          <i class="fa-brands fa-whatsapp me-1"></i>WhatsApp
         </a>
         {% else %}
-        <a href="mailto:{{ listing.owner.email }}" class="btn btn-warning fw-semibold mt-2">
+        <a href="mailto:{{ listing.owner.email }}" class="btn btn-warning fw-semibold mt-2 w-100">
           <i class="fa-solid fa-envelope me-1"></i>{{ t('contact_seller') }}
         </a>
         {% endif %}
