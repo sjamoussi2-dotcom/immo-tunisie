@@ -1,13 +1,24 @@
 {% extends "base.html" %}
+{% block meta_title %}{{ t('edit_listing_title') if edit_mode else t('publish_listing_title') }} | {{ t('site_name') }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  #locationMap { height: 320px; border-radius: .5rem; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container py-4" style="max-width:800px;">
-  <h2 class="fw-bold mb-4">{{ t('publish_listing_title') }}</h2>
+  <h2 class="fw-bold mb-4">{{ t('edit_listing_title') if edit_mode else t('publish_listing_title') }}</h2>
 
   <div class="alert alert-info small">
     <i class="fa-solid fa-circle-info me-1"></i>{{ t('estimate_note') }}
   </div>
 
-  <form method="post" enctype="multipart/form-data" class="card p-4 shadow-sm">
+  <form method="post"
+        action="{{ url_for('edit_listing', listing_id=listing.id) if edit_mode else url_for('create_listing') }}"
+        enctype="multipart/form-data" class="card p-4 shadow-sm">
     <div class="mb-3">
       <label class="form-label">{{ t('form_title') }}</label>
       <input type="text" name="title" class="form-control" required value="{{ form.get('title','') }}">
@@ -61,30 +72,121 @@
     </div>
 
     <div class="mb-3">
-      <label class="form-label">{{ t('form_photos') }} <span class="text-danger">*</span></label>
-      <input type="file" name="photos" class="form-control" accept="image/*" multiple required>
-      <div class="form-text text-danger">{{ t('form_photos_help') }}</div>
+      <label class="form-label">{{ t('form_contact_phone') }} <span class="text-danger">*</span></label>
+      <input type="tel" name="contact_phone" class="form-control" required
+             placeholder="20 123 456" value="{{ form.get('contact_phone','') }}">
+      <div class="form-text">{{ t('form_contact_phone_help') }}</div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">{{ t('form_photos') }} {% if not edit_mode %}<span class="text-danger">*</span>{% endif %}</label>
+      <input type="file" name="photos" class="form-control" accept="image/*" multiple {% if not edit_mode %}required{% endif %}>
+      {% if edit_mode and listing.photos %}
+        <div class="form-text">{{ t('existing_photos_note') }}</div>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          {% for photo in listing.photos %}
+          <img src="{{ url_for('photo', photo_id=photo.id) }}" style="width:80px;height:80px;object-fit:cover;border-radius:.375rem;">
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="form-text text-danger">{{ t('form_photos_help') }}</div>
+      {% endif %}
     </div>
 
     <div class="mb-3">
       <label class="form-label">{{ t('form_location') }} <span class="text-danger">*</span></label>
-      <div class="row g-2">
-        <div class="col-md-6">
-          <input type="number" step="any" name="lat" class="form-control" placeholder="Latitude" required value="{{ form.get('lat','') }}">
-        </div>
-        <div class="col-md-6">
-          <input type="number" step="any" name="lng" class="form-control" placeholder="Longitude" required value="{{ form.get('lng','') }}">
-        </div>
+      <div class="input-group mb-2">
+        <input type="text" id="mapSearch" class="form-control" placeholder="{{ t('search_address_placeholder') }}">
+        <button type="button" class="btn btn-outline-secondary" id="mapSearchBtn">
+          <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
       </div>
+      <div id="locationMap" class="border"></div>
       <div class="form-text">
         {{ t('form_location_help') }}
-        <a href="https://www.google.com/maps" target="_blank" rel="noopener">{{ t('open_google_maps') }}</a>
+        <span id="locationCoords" class="fw-semibold"></span>
       </div>
+      <input type="hidden" name="lat" id="latInput" value="{{ form.get('lat','') or '' }}">
+      <input type="hidden" name="lng" id="lngInput" value="{{ form.get('lng','') or '' }}">
     </div>
 
     <button type="submit" class="btn btn-warning fw-semibold mt-2">
-      <i class="fa-solid fa-paper-plane me-1"></i>{{ t('submit_listing') }}
+      <i class="fa-solid fa-paper-plane me-1"></i>{{ t('save_changes') if edit_mode else t('submit_listing') }}
     </button>
   </form>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var latField = document.getElementById('latInput');
+  var lngField = document.getElementById('lngInput');
+  var coordsLabel = document.getElementById('locationCoords');
+
+  var startLat = parseFloat(latField.value);
+  var startLng = parseFloat(lngField.value);
+  var hasStart = !isNaN(startLat) && !isNaN(startLng);
+  if (!hasStart) { startLat = 36.8065; startLng = 10.1815; } // Tunis, default view
+
+  var map = L.map('locationMap').setView([startLat, startLng], hasStart ? 14 : 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  var marker = null;
+
+  function setCoords(lat, lng) {
+    latField.value = lat.toFixed(6);
+    lngField.value = lng.toFixed(6);
+    coordsLabel.textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
+  }
+
+  function placeMarker(lat, lng) {
+    if (marker) {
+      marker.setLatLng([lat, lng]);
+    } else {
+      marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      marker.on('dragend', function () {
+        var p = marker.getLatLng();
+        setCoords(p.lat, p.lng);
+      });
+    }
+    setCoords(lat, lng);
+  }
+
+  if (hasStart) {
+    placeMarker(startLat, startLng);
+  }
+
+  map.on('click', function (e) {
+    placeMarker(e.latlng.lat, e.latlng.lng);
+  });
+
+  function doSearch() {
+    var q = document.getElementById('mapSearch').value.trim();
+    if (!q) return;
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tn&q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (results) {
+        if (!results || !results.length) {
+          alert('{{ t("address_not_found") }}');
+          return;
+        }
+        var lat = parseFloat(results[0].lat);
+        var lng = parseFloat(results[0].lon);
+        map.setView([lat, lng], 15);
+        placeMarker(lat, lng);
+      })
+      .catch(function () {});
+  }
+
+  document.getElementById('mapSearchBtn').addEventListener('click', doSearch);
+  document.getElementById('mapSearch').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+  });
+});
+</script>
 {% endblock %}
